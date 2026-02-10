@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>36-Piece Puzzle - Roses</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; overflow-x:hidden;}
+#timer { font-size:24px; margin-top:20px; }
+#startBtn { margin-top:10px; padding:10px 20px; font-size:16px; cursor:pointer; }
+#puzzle { width:600px; height:600px; margin-top:20px; position:relative; border:2px solid #333; pointer-events:none; }
+.piece { position:absolute; background-image:url("Shin_Chan.jpg"); background-size:600px 600px; border:1px solid #ccc; cursor:pointer; transition: top 0.2s, left 0.2s, border 0.2s; }
+.piece.selected { border:2px solid red; }
+.piece.correct { border:2px solid green; }
+#reviewPopup {
+    display:none;
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    background:#fff;
+    padding:20px;
+    border:2px solid #333;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
+    z-index:1000;
+    text-align:center;
+}
+#reviewPopup input { width:80%; padding:8px; font-size:16px; }
+#reviewPopup button { padding:8px 15px; font-size:16px; margin-top:10px; cursor:pointer; }
+#reviewBox { display:none; min-height:50px; border:1px solid #ccc; width:400px; padding:10px; margin-top:20px; background:#fff; font-weight:bold; text-align:center;}
+.confetti, .heart { position:fixed; width:10px; height:10px; animation:fall 2s linear forwards; }
+.heart { width:15px; height:15px; background:red; transform:rotate(45deg); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 50% 75%, 18% 100%, 0% 38%); }
+@keyframes fall { 0% {transform:translateY(0) rotate(0deg);} 100% {transform:translateY(700px) rotate(360deg); opacity:0;} }
+</style>
+</head>
+<body>
+
+<h2>Can you solve this 36-piece puzzle? 🌹</h2>
+<div id="timer">Time: 02:00</div>
+<button id="startBtn">Start</button>
+<div id="puzzle"></div>
+
+<div id="reviewPopup">
+    <h3>🎉 You solved it! 🎉</h3>
+    <input type="text" id="reviewInput" placeholder="Write your review here...">
+    <br>
+    <button id="submitReview">Submit</button>
+</div>
+
+<div id="reviewBox"></div> <!-- her review will appear here -->
+
+<script>
+const puzzle = document.getElementById("puzzle");
+const startBtn = document.getElementById("startBtn");
+const reviewPopup = document.getElementById("reviewPopup");
+const reviewInput = document.getElementById("reviewInput");
+const submitReview = document.getElementById("submitReview");
+const reviewBox = document.getElementById("reviewBox");
+
+const rows = 6, cols = 6;
+const puzzleSize = 600; 
+const pieceW = puzzleSize/cols;
+const pieceH = puzzleSize/rows;
+let pieces = [];
+let firstClick = null;
+let timer = null;
+let timeLeft = 120; // 2 minutes
+let gameStarted = false;
+
+// Shuffle helper
+function shuffle(array){
+    for(let i=array.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [array[i],array[j]]=[array[j],array[i]];
+    }
+    return array;
+}
+
+// Create puzzle
+function createPuzzle(){
+    puzzle.innerHTML="";
+    pieces=[];
+    const indices = shuffle([...Array(rows*cols).keys()]);
+
+    for(let i=0;i<rows*cols;i++){
+        const piece = document.createElement("div");
+        piece.classList.add("piece");
+        piece.style.width = pieceW + "px";
+        piece.style.height = pieceH + "px";
+
+        const correctIndex = i;
+        const currentIndex = indices[i];
+
+        const currentRow = Math.floor(currentIndex/cols);
+        const currentCol = currentIndex % cols;
+        piece.style.top = currentRow*pieceH+"px";
+        piece.style.left = currentCol*pieceW+"px";
+
+        const correctRow = Math.floor(correctIndex/cols);
+        const correctCol = correctIndex % cols;
+        piece.style.backgroundPosition = `-${correctCol*pieceW}px -${correctRow*pieceH}px`;
+
+        puzzle.appendChild(piece);
+
+        pieces.push({element: piece, correctIndex, currentIndex});
+    }
+
+    addClickSwap();
+    highlightCorrectPieces();
+}
+
+// Click-to-swap
+function addClickSwap(){
+    pieces.forEach((p,i)=>{
+        p.element.addEventListener("click",()=>{
+            if(!gameStarted) return;
+
+            if(firstClick===null){
+                firstClick=i;
+                p.element.classList.add("selected");
+            } else if(firstClick!==i){
+                const a = pieces[firstClick];
+                const b = pieces[i];
+
+                [a.currentIndex,b.currentIndex] = [b.currentIndex,a.currentIndex];
+
+                const aRow = Math.floor(a.currentIndex/cols);
+                const aCol = a.currentIndex%cols;
+                const bRow = Math.floor(b.currentIndex/cols);
+                const bCol = b.currentIndex%cols;
+
+                a.element.style.top = aRow*pieceH+"px";
+                a.element.style.left = aCol*pieceW+"px";
+                b.element.style.top = bRow*pieceH+"px";
+                b.element.style.left = bCol*pieceW+"px";
+
+                a.element.classList.remove("selected");
+                firstClick=null;
+
+                highlightCorrectPieces();
+
+                setTimeout(checkWin, 0);
+            } else {
+                pieces[firstClick].element.classList.remove("selected");
+                firstClick=null;
+            }
+        });
+    });
+}
+
+// Highlight correct pieces
+function highlightCorrectPieces(){
+    pieces.forEach(p=>{
+        if(p.currentIndex===p.correctIndex){
+            p.element.classList.add("correct");
+        } else {
+            p.element.classList.remove("correct");
+        }
+    });
+}
+
+// Confetti + Hearts effect
+function createCelebration(){
+    for(let i=0;i<40;i++){
+        const confetti = document.createElement("div");
+        confetti.classList.add("confetti");
+        confetti.style.left=Math.random()*window.innerWidth+"px";
+        confetti.style.backgroundColor=`hsl(${Math.random()*360},100%,50%)`;
+        confetti.style.animationDuration=(2+Math.random()*2)+"s";
+        document.body.appendChild(confetti);
+        setTimeout(()=>confetti.remove(),4000);
+    }
+    for(let i=0;i<20;i++){
+        const heart = document.createElement("div");
+        heart.classList.add("heart");
+        heart.style.left=Math.random()*window.innerWidth+"px";
+        heart.style.animationDuration=(2+Math.random()*2)+"s";
+        document.body.appendChild(heart);
+        setTimeout(()=>heart.remove(),4000);
+    }
+}
+
+// Check win
+function checkWin(){
+    const solved = pieces.every(p=>p.currentIndex===p.correctIndex);
+    if(solved){
+        clearInterval(timer); // freeze timer
+        createCelebration();
+        reviewPopup.style.display="block";
+        puzzle.style.pointerEvents="none";
+    }
+}
+
+// Timer
+function startTimer(){
+    timeLeft=120; // 2 minutes
+    document.getElementById("timer").innerText="Time: 02:00";
+    timer=setInterval(()=>{
+        if(!gameStarted) return;
+        timeLeft--;
+        const min=Math.floor(timeLeft/60).toString().padStart(2,'0');
+        const sec=(timeLeft%60).toString().padStart(2,'0');
+        document.getElementById("timer").innerText=`Time: ${min}:${sec}`;
+        if(timeLeft<=0){
+            clearInterval(timer);
+            alert("💔 Time's up! You couldn't finish the puzzle.");
+            puzzle.style.pointerEvents="none";
+        }
+    },1000);
+}
+
+// Start button
+startBtn.addEventListener("click",()=>{
+    if(!gameStarted){
+        gameStarted=true;
+        puzzle.style.pointerEvents="all";
+        createPuzzle();
+        startTimer();
+    }
+});
+
+// Submit review
+submitReview.addEventListener("click",()=>{
+    const review = reviewInput.value.trim();
+    reviewBox.style.display="block";
+    reviewBox.innerText = review || "No review provided.";
+    reviewPopup.style.display="none";
+});
+</script>
+
+<div id="reviewBox"></div>
+
+</body>
+</html>
